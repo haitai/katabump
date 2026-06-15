@@ -36,9 +36,9 @@ jobs:
           libgbm1 \
           libpango-1.0-0 \
           libpangocairo-1.0-0 \
-          libasound2 \
           libappindicator3-1 \
-          fonts-liberation
+          fonts-liberation \
+          libasound2t64 || sudo apt-get install -y libasound2
         
     - name: Install npm dependencies
       run: npm install
