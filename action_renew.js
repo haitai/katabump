@@ -183,16 +183,24 @@ async function launchChrome() {
         '--window-size=1280,720',
         '--no-sandbox',
         '--disable-setuid-sandbox',
-        '--user-data-dir=/tmp/chrome_user_data' // 必须指定用户数据目录，否则远程调试可能失败
+        '--user-data-dir=/tmp/chrome_user_data', // 必须指定用户数据目录，否则远程调试可能失败
+        '--disable-dev-shm-usage', // 避免共享内存不足
+        // ===== 新增关键参数以减少资源占用 =====
+        '--disable-background-networking',
+        '--disable-client-side-phishing-detection',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-default-apps',
+        '--disable-extensions',
+        '--disable-features=TranslateUI',
+        '--disable-sync',
+        '--no-crash-upload',
+        '--metrics-recording-only'
     ];
 
     if (PROXY_CONFIG) {
         args.push(`--proxy-server=${PROXY_CONFIG.server}`);
         args.push('--proxy-bypass-list=<-loopback>');
     }
-    // 添加针对 Linux 环境的额外稳定性参数
-    args.push('--disable-dev-shm-usage'); // 避免共享内存不足
-
 
     const chrome = spawn(CHROME_PATH, args, {
         detached: true,
@@ -201,9 +209,19 @@ async function launchChrome() {
     chrome.unref();
 
     console.log('正在等待 Chrome 初始化...');
-    for (let i = 0; i < 20; i++) {
-        if (await checkPort(DEBUG_PORT)) break;
-        await new Promise(r => setTimeout(r, 1000));
+    // 初始延迟 2 秒，让 Chrome 进程有时间启动
+    await new Promise(r => setTimeout(r, 2000));
+    
+    // 改进的重试逻辑：更多重试次数和渐进式等待
+    for (let i = 0; i < 30; i++) {
+        if (await checkPort(DEBUG_PORT)) {
+            console.log('Chrome 端口已就绪！');
+            return;
+        }
+        // 前 5 次等待 1 秒，后续等待 0.5 秒
+        const waitTime = i < 5 ? 1000 : 500;
+        console.log(`   等待中... (${i + 1}/30, 下次检查将在 ${waitTime}ms 后)`);
+        await new Promise(r => setTimeout(r, waitTime));
     }
 
     if (!await checkPort(DEBUG_PORT)) {
@@ -395,7 +413,7 @@ async function attemptTurnstileCdp(page) {
                 } else {
                     console.log('   >> 登录前未检测到或未点击 Turnstile，继续操作...');
                 }
-                // --------------------------------------------
+                // -------------------------------------------
 
                 await page.getByRole('button', { name: 'Login', exact: true }).click();
 
