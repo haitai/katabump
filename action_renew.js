@@ -163,33 +163,58 @@ async function launchChrome() {
         console.log('Chrome 已开启。');
         return;
     }
+
     console.log(`正在启动 Chrome (路径: ${CHROME_PATH})...`);
+
     const args = [
         `--remote-debugging-port=${DEBUG_PORT}`,
         '--no-first-run',
         '--no-default-browser-check',
         '--disable-gpu',
-        `--window-size=${VIEWPORT_WIDTH},${VIEWPORT_HEIGHT}`,
+        '--window-size=1280,720',
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--user-data-dir=/tmp/chrome_user_data',
-        '--disable-dev-shm-usage'
+        // ===== 新增关键参数 =====
+        '--disable-dev-shm-usage',           // 禁用 /dev/shm，改用内存
+        '--disable-background-networking',   // 禁用后台网络
+        '--disable-client-side-phishing-detection',
+        '--disable-component-extensions-with-background-pages',
+        '--disable-default-apps',
+        '--disable-extensions',
+        '--disable-features=TranslateUI',
+        '--disable-sync',
+        '--no-crash-upload',
+        '--metrics-recording-only'
     ];
+
     if (PROXY_CONFIG) {
         args.push(`--proxy-server=${PROXY_CONFIG.server}`);
         args.push('--proxy-bypass-list=<-loopback>');
     }
+
     const chrome = spawn(CHROME_PATH, args, {
         detached: true,
         stdio: 'ignore'
     });
     chrome.unref();
+
     console.log('正在等待 Chrome 初始化...');
-    for (let i = 0; i < 20; i++) {
-        if (await checkPort(DEBUG_PORT)) break;
-        await new Promise(r => setTimeout(r, 1000));
+    
+    // 改进等待逻辑：初始延迟 + 更长的重试时间
+    await new Promise(r => setTimeout(r, 2000)); // 初始等待 2 秒
+    
+    for (let i = 0; i < 30; i++) {  // 增加重试次数到 30 次
+        if (await checkPort(DEBUG_PORT)) {
+            console.log('Chrome 端口已就绪！');
+            return;
+        }
+        const waitTime = i < 5 ? 1000 : 500; // 前 5 次等待 1 秒，后续 0.5 秒
+        await new Promise(r => setTimeout(r, waitTime));
     }
+
     if (!await checkPort(DEBUG_PORT)) {
+        console.error('Chrome 无法在端口 ' + DEBUG_PORT + ' 上启动');
         throw new Error('Chrome 启动失败');
     }
 }
