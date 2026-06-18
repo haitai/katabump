@@ -20,7 +20,7 @@ jobs:
       with:
         node-version: '20'
         
-    - name: Install system dependencies
+    - name: Install Dependencies
       run: |
         sudo apt-get update
         sudo apt-get install -y \
@@ -41,6 +41,8 @@ jobs:
           libappindicator3-1 \
           fonts-liberation \
           libasound2t64 || sudo apt-get install -y libasound2
+        npm install
+        npx playwright install-deps chrome
       
     - name: Run Renew Script
       env:
